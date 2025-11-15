@@ -11,7 +11,7 @@ With this extension, you can use:
 
 ## Wait, what?
 
-Yep. Your k6 script can call out a external JavaScript runtime from inside a VU, synchronously, and get results back as if it were a normal function call.
+Yep. With this extension, your k6 tests can call out a external JavaScript runtime from inside a VU, synchronously, and get results back as if it were a normal function call.
 
 ```js
 // test.js
@@ -27,11 +27,11 @@ export default function () {
 ```
 
 Behind the scenes, `js.run()`:
-- Spins up a Node.js (or Deno/Bun) process
-- Sends the payload over (plus environment variables, etc)
-- Runs your code
-- Collects any custom k6 metrics you recorded
-- Returns the result back to your k6 script
+- Spins up a Node.js (or Deno/Bun) process.
+- Sends the payload over (plus environment variables, etc).
+- Runs your code.
+- Collects any custom k6 metrics you recorded.
+- Returns the result back to your k6 script.
 
 Here is what the `auth.node.js` file (running inside Node) looks like:
 ```js
