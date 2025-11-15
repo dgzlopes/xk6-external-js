@@ -36,7 +36,7 @@ Behind the scenes, `js.run()`:
 Here is what the `auth.node.js` file (running inside Node) looks like:
 ```js
 // auth.node.js
-const { run } = require("k6_helpers");
+const { run } = require("xk6_js_helpers");
 const crypto = require("crypto");
 
 module.exports = run(async ({ payload, metrics }) => {
