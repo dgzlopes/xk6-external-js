@@ -67,20 +67,17 @@ ext.run("./lib.js", {
 ```
 
 ### Performance
+Each call has ~25 ms of overhead because it spawns a new runtime process. This is usually fine when your external JS does meaningful work (crypto, I/O, etc.). However, this extension isn’t designed for **high-load scenarios**.
 
-Each call has ~25ms overhead since it spawns a new runtime process. This penalty can be fine for most use cases where your external JS does meaningful work (crypto, I/O, etc.), but... it won't work **in high load scenarios** e.g. You'll hit system limits from spawning too many OS processes.
+You can quickly hit system limits by spawning too many OS processes. k6’s built-in JavaScript runtime is optimized for high concurrency, so for heavy-load tests you should mix approaches. For example, use Deno/Node/Bun in `setup()` and rely on k6’s runtime inside VU code.
 
-k6's Sobek engine is purposely built for high load, so you can mix and match both approaches (e.g., use this extension in the setup and sobek in your VU code).
-
-Benchmark results (5 VUs, 10s duration, minimal function call):
+Benchmark results (5 VUs, 10s duration, [minimal function call](https://github.com/dgzlopes/xk6-external-js/tree/main/bench)):
 
 | Runtime | Iterations/s | Avg Duration |
 |---------|--------------|--------------|
 | Bun     | ~275         | ~17ms        |
 | Deno    | ~233         | ~21ms        |
 | Node    | ~204         | ~24ms        |
-
-Run benchmarks: `cd bench && BENCH_RUNTIME=bun ../k6 run ./test.k6.js`
 
 ### Helpers Package
 
