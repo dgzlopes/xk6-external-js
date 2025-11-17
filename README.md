@@ -1,40 +1,26 @@
 # xk6-external-js
 
-Bring Node, Deno, and Bun into your Grafana k6 tests. Seamless interop. Endless possibilities.
+Run Node, Deno, or Bun code from k6 tests. Useful for using npm packages, standard library APIs, or existing code that doesn't work on k6's JavaScript runtime.
 
-With this extension, you can use:
-- All of Node/Deno/Bun's standard library (`fs`, `crypto`, `http`, etc)
-- Any npm package you want (e.g. Playwright, Axios, etc)
-- Internal SDKs and company-specific libraries you already rely on
+## Build
 
-...directly from your k6 scripts. No rewrites. No duplicated logic.
+```bash
+xk6 build --with github.com/grafana/xk6-external-js@latest
+```
 
-## Wait, what?
-
-Yep. With this extension, your k6 tests can call out a external JavaScript runtime from inside a VU, synchronously, and get results back as if it were a normal function call.
+## Usage
 
 ```js
-// test.js
+// test.k6.js
 import ext from "k6/x/external_js";
 
 export default function () {
   const result = ext.run("auth.node.js", {
     user: "alice",
   });
-
   console.log("Token:", result.token);
 }
 ```
-
-Behind the scenes, `ext.run()`:
-- Spins up a Node.js (or Deno/Bun) process.
-- Sends the payload over (plus environment variables, etc).
-- Runs your code.
-- Collects any custom k6 metrics you recorded.
-- Records any k6 checks you defined.
-- Returns the result back to your k6 script.
-
-Here is what the `auth.node.js` file (running inside Node) looks like:
 
 ```js
 // auth.node.js
@@ -59,34 +45,35 @@ module.exports = run(async (ctx) => {
 });
 ```
 
-## More
+## Runtimes
 
-### Supported Runtimes
+Runtime is auto-detected from the filename:
+- `*.node.js/ts` → Node.js
+- `*.deno.js/ts` → Deno
+- `*.bun.js/ts` → Bun
+- Otherwise defaults to Node.js
 
-This extension supports three JavaScript runtimes: Node (default), Bun and Deno.
+Alternatively, you can specify it manually:
 
 ```js
-// Defaults to Node.js
-ext.run("./lib.js", { user: "alice" });
-
-// Explicit runtime
 ext.run("./lib.js", {
   payload: { user: "alice" },
   runtime: "deno" // or "node" or "bun"
 });
 ```
 
-### NPM Package
+## NPM Package
 
-The `xk6-external-js-helpers` package provides utilities for working with k6 from external JavaScript runtimes:
+The `xk6-external-js-helpers` package provides utilities to make the interop nicer:
+- `run(fn)` - Wraps your code and handles metrics/checks collection
+- `metrics` - Emit k6 metrics (counters, gauges, trends, rates)
+- `checks` - Create k6 checks
+- `ctx` - Execution context with payload, env vars, and VU info
 
-- **`run(fn)`** Wraps your async function and handles metrics/checks collection
-- **`metrics`** Emit custom k6 metrics (counters, gauges, trends, rates)
-- **`checks`** Create k6 checks
-- **`ctx`** Access execution context (payload, environment variables, VU info)
-
-Install it in your project with
+Install it in your project with:
 
 ```bash
 npm install xk6-external-js-helpers
 ```
+
+
