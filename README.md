@@ -79,16 +79,18 @@ ext.run("./lib.js", {
 
 The `payload` is passed as `ctx.payload` in your external script, and whatever you return becomes the result in k6. Only JSON-serializable data can be passed (no functions, classes, or Buffers). Promises are automatically awaited.
 
-If your external JS throws an error, it fails the k6 iteration and the error includes full stdout/stderr output. `console.log` from external JS is captured but only appears in error messages when execution fails.
+If your external JS throws an error, it fails the k6 iteration and the error includes full stdout/stderr output. 
 
 ### Security
 
-External runtimes have full access to the local filesystem and network. Deno is run with `--allow-all` (bypassing its permission system), and Node.js/Bun have no sandboxing by default.
+External runtimes have full access to the local filesystem and network. 
+
+Deno is run with `--allow-all` (bypassing its permission system), and Node.js/Bun have no sandboxing by default.
 
 ### Performance
-Each call has ~25 ms of overhead because it spawns a new runtime process. This is usually fine when your external JS does meaningful work (crypto, I/O, etc.). However, this extension isn’t designed for **high-load scenarios**.
+Each call has ~25 ms of overhead because it spawns a new runtime process. This can be fine when your external JS does meaningful work. 
 
-You can quickly hit system limits by spawning too many OS processes. k6’s built-in JavaScript runtime is optimized for high concurrency, so for heavy-load tests you should mix approaches. For example, use Deno/Node/Bun in `setup()` and rely on k6’s runtime inside VU code.
+However, this extension isn’t designed for **load testing**. k6’s built-in JavaScript runtime is optimized for high concurrency, so you should mix approaches if those are your requirements. For example, use Deno/Node/Bun in `setup()` and rely on k6’s runtime inside VU code.
 
 Benchmark results (5 VUs, 10s duration, [minimal function call](https://github.com/dgzlopes/xk6-external-js/tree/main/bench)):
 
