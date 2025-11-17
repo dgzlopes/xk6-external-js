@@ -4,7 +4,7 @@ Run Node, Deno, or Bun code from your k6 tests so you can use:
 
 - Any npm package (e.g., Playwright, AWS/GCP/Azure SDKs, JWT, etc)
 - Runtime standard libraries (e.g., fs, crypto, http)
-- Existing JavaScript/TypeScript code that doesn’t run in k6’s runtime
+- Existing JavaScript/TypeScript code that doesn’t work in k6’s runtime
 
 ## Prerequisites
 
