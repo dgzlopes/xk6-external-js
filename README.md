@@ -122,18 +122,17 @@ The `xk6-external-js-helpers` package provides utilities to make the interop nic
 - `metrics` - Emit k6 metrics (counters, gauges, trends, rates)
 - `checks` - Create k6 checks
 
-**Handler Pattern**: Export a `handler` function from your module. The system automatically wraps it with metrics and checks collection:
+**Handler Pattern**  
+Export a `handler` function from your module. The system automatically wraps it with metrics and checks collection:
 
 ```js
 // For ES modules (Deno, Bun, or Node with type: "module")
 export const handler = async (ctx) => {
-  // Access ctx.payload, ctx.env, ctx.vu
   // Your code here
 };
 
 // For CommonJS (Node.js)
 const handler = async (ctx) => {
-  // Access ctx.payload, ctx.env, ctx.vu
   // Your code here
 };
 module.exports = { handler };
