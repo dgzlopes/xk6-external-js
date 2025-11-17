@@ -31,7 +31,7 @@ Behind the scenes, `ext.run()`:
 - Sends the payload over (plus environment variables, etc).
 - Runs your code.
 - Collects any custom k6 metrics you recorded.
-- Replays any k6 checks you defined.
+- Records any k6 checks you defined.
 - Returns the result back to your k6 script.
 
 Here is what the `auth.node.js` file (running inside Node) looks like:
@@ -51,7 +51,7 @@ module.exports = run(async (ctx) => {
     .update(ctx.payload.user + "-" + Date.now())
     .digest("hex");
   
-  // Create k6 checks that will be replayed in the k6 context
+  // Create k6 checks that will be recorded in the k6 context
   checks.check("token_generated", token !== undefined);
   checks.check("token_length_valid", token.length === 64);
 
