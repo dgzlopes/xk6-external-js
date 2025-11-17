@@ -1,4 +1,4 @@
-# xk6-external-js
+<img src="media/header.png" alt="Davia Banner" style="border-radius: 10px; width: 100%; margin-bottom:10px;" />
 
 Run Node, Deno, or Bun code from your k6 tests so you can use:
 
