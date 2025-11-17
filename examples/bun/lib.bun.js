@@ -1,7 +1,7 @@
-import { run } from "../../helpers/index.js";
+import { run, metrics } from "../../helpers/index.js";
 
 export default run(async (ctx) => {
-  ctx.metrics.counter("bun_requests").add(1);
+  metrics.counter("bun_requests").add(1);
 
   // Bun's native hash API
   const hash = Bun.hash(JSON.stringify(ctx.payload));

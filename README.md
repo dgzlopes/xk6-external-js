@@ -31,25 +31,31 @@ Behind the scenes, `ext.run()`:
 - Sends the payload over (plus environment variables, etc).
 - Runs your code.
 - Collects any custom k6 metrics you recorded.
+- Replays any k6 checks you defined.
 - Returns the result back to your k6 script.
 
 Here is what the `auth.node.js` file (running inside Node) looks like:
 
 ```js
 // auth.node.js
-const { run } = require("xk6-external-js-helpers");
+const { run, metrics, checks } = require("xk6-external-js-helpers");
 const crypto = require("crypto");
 
-module.exports = run(async ({ payload, metrics }) => {
-  // Yes, you can emit k6 metrics from here
+module.exports = run(async (ctx) => {
+  // Emit custom k6 metrics from the external runtime
   metrics.counter("auth_calls").add(1);
+  
+  // Use Node's standard library APIs (crypto, fs, http, etc.)
+  const token = crypto
+    .createHash("sha256")
+    .update(ctx.payload.user + "-" + Date.now())
+    .digest("hex");
+  
+  // Create k6 checks that will be replayed in the k6 context
+  checks.check("token_generated", token !== undefined);
+  checks.check("token_length_valid", token.length === 64);
 
-  return {
-    token: crypto
-      .createHash("sha256")
-      .update(payload.user + "-" + Date.now())
-      .digest("hex"),
-  };
+  return { token };
 });
 ```
 
@@ -57,26 +63,4 @@ A helper library (`xk6-external-js-helpers`) can be used to wrap your JavaScript
 
 ```bash
 npm install xk6-external-js-helpers
-```
-
-## Using npm packages with Deno
-
-When using Deno, npm packages must be imported with the `npm:` prefix:
-
-```ts
-// lib.deno.ts
-import { run } from "../../helpers/index.js";
-import axios from "npm:axios@^1.6.0";  // Note the npm: prefix
-
-export default run(async ({ payload, metrics }) => {
-  const response = await axios.get("https://example.com/api");
-  return { data: response.data };
-});
-```
-
-**Important**: Deno requires the `npm:` specifier for all npm package imports. The extension automatically enables npm support with the `--allow-all` flag.
-
-For npm packages that require installation (like Playwright), you may need to run setup commands separately:
-```bash
-deno run --allow-all npm:playwright install
 ```

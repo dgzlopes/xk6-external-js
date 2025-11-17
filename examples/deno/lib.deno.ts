@@ -1,14 +1,16 @@
-import { run } from "../../helpers/index.js";
+import { run, metrics, checks } from "../../helpers/index.js";
 import { chromium } from "npm:playwright@^1.40.0";
 
 export default run(async (ctx) => {
-  ctx.metrics.counter("deno_requests").add(1);
+  metrics.counter("deno_requests").add(1);
 
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.goto('https://example.com/');
   const title = await page.title();
   await browser.close();
+
+  checks.check("title_is_example", title === "Example Domain");
 
   return {
     title,

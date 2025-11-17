@@ -31,7 +31,7 @@ func (*ExternalJSModule) NewModuleInstance(vu modules.VU) modules.Instance {
 	registry := vu.InitEnv().Registry
 
 	return &ExternalJS{
-		vu:            vu,
+		vu:                  vu,
 		jsIterationDuration: registry.MustNewMetric("external_js_iteration_duration", metrics.Trend, metrics.Time),
 		jsIterations:        registry.MustNewMetric("external_js_iterations", metrics.Counter),
 		customMetrics:       make(map[string]*metrics.Metric),
@@ -41,7 +41,7 @@ func (*ExternalJSModule) NewModuleInstance(vu modules.VU) modules.Instance {
 
 // ExternalJS is the type for our external JavaScript runtime interop API.
 type ExternalJS struct {
-	vu                 modules.VU
+	vu                  modules.VU
 	jsIterationDuration *metrics.Metric
 	jsIterations        *metrics.Metric
 	customMetrics       map[string]*metrics.Metric
@@ -304,6 +304,55 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 		}
 
 		delete(result, "__k6_metrics__")
+	}
+
+	// 10) Automatically replay checks from external JavaScript runtime (__k6_checks__)
+	// Record checks as rate metrics (k6 checks are rate metrics under the hood)
+	if checksArray, ok := result["__k6_checks__"].([]interface{}); ok {
+		if state != nil {
+			// Get or create the checks metric (rate metric)
+			checkMetric, exists := j.customMetrics["checks"]
+			if !exists {
+				checkMetric = j.registry.MustNewMetric("checks", metrics.Rate)
+				j.customMetrics["checks"] = checkMetric
+			}
+
+			for _, checkEntry := range checksArray {
+				checkData, ok := checkEntry.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				checkName, _ := checkData["name"].(string)
+				checkOk, _ := checkData["ok"].(bool)
+
+				if checkName == "" {
+					continue
+				}
+
+				// Record check as rate metric: 1 for pass, 0 for fail
+				// k6 checks use the check name as a tag
+				checkValue := 0.0
+				if checkOk {
+					checkValue = 1.0
+				}
+
+				metricTags := state.Tags.GetCurrentValues().Tags.WithTagsFromMap(
+					map[string]string{"check": checkName},
+				)
+
+				metrics.PushIfNotDone(j.vu.Context(), state.Samples, metrics.Sample{
+					TimeSeries: metrics.TimeSeries{
+						Metric: checkMetric,
+						Tags:   metricTags,
+					},
+					Time:  time.Now(),
+					Value: checkValue,
+				})
+			}
+		}
+
+		delete(result, "__k6_checks__")
 	}
 
 	return result, nil
