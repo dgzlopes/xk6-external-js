@@ -55,6 +55,36 @@ func (j *ExternalJS) Exports() modules.Exports {
 	}
 }
 
+// getExecutionContext extracts k6 execution context from VU state
+func (j *ExternalJS) getExecutionContext() map[string]interface{} {
+	state := j.vu.State()
+	if state == nil {
+		return map[string]interface{}{
+			"vu": map[string]interface{}{
+				"id":        int64(0),
+				"iteration": int64(0),
+			},
+		}
+	}
+
+	// Extract scenario from tags if available
+	scenario := ""
+	if state.Tags != nil {
+		tags := state.Tags.GetCurrentValues().Tags
+		if scenarioTag, ok := tags.Get("scenario"); ok && scenarioTag != "" {
+			scenario = scenarioTag
+		}
+	}
+
+	return map[string]interface{}{
+		"vu": map[string]interface{}{
+			"id":        int64(state.VUID),
+			"iteration": int64(state.Iteration),
+			"scenario":  scenario,
+		},
+	}
+}
+
 // RunOptions represents the internal options we derive from ext.run(...)
 type RunOptions struct {
 	Runtime string            `json:"runtime"`
@@ -122,37 +152,40 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 		defer cancel()
 	}
 
-	// 4) Execute external JavaScript runtime with embedded runner script
+	// 4) Serialize execution context
+	execContext := j.getExecutionContext()
+	execContextBytes, err := json.Marshal(execContext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal execution context: %w", err)
+	}
+
+	// 5) Execute external JavaScript runtime with embedded runner script
 	var cmd *exec.Cmd
 	switch opts.Runtime {
 	case "node":
-		// node -e <runnerScript> <entry> <payloadJson>
-		cmd = exec.CommandContext(ctx, "node", "-e", runnerScript, opts.Entry, string(payloadBytes))
+		// node -e <runnerScript> <entry> <payloadJson> <execContextJson>
+		cmd = exec.CommandContext(ctx, "node", "-e", runnerScript, opts.Entry, string(payloadBytes), string(execContextBytes))
 	case "deno":
-		// deno run --allow-all - (with entry and payload in env vars)
+		// deno run --allow-all - <entry> <payloadJson> <execContextJson>
 		// --allow-all enables npm: specifier imports and all other permissions
-		cmd = exec.CommandContext(ctx, "deno", "run", "--allow-all", "-")
+		// The script is piped via stdin, arguments come after -
+		cmd = exec.CommandContext(ctx, "deno", "run", "--allow-all", "-", opts.Entry, string(payloadBytes), string(execContextBytes))
 		cmd.Stdin = strings.NewReader(runnerScript)
 		// Set working directory to ensure relative imports and npm packages resolve correctly
 		if wd, err := os.Getwd(); err == nil {
 			cmd.Dir = wd
 		}
 	case "bun":
-		// bun -e <runnerScript> <entry> <payloadJson>
-		cmd = exec.CommandContext(ctx, "bun", "-e", runnerScript, opts.Entry, string(payloadBytes))
+		// bun -e <runnerScript> <entry> <payloadJson> <execContextJson>
+		cmd = exec.CommandContext(ctx, "bun", "-e", runnerScript, opts.Entry, string(payloadBytes), string(execContextBytes))
 	default:
 		return nil, fmt.Errorf("unsupported runtime: %s", opts.Runtime)
 	}
 
-	// 5) Env: base env + overrides
+	// 6) Env: base env + overrides
 	env := os.Environ()
 	for k, v := range opts.Env {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-	// Set env vars for Deno before assigning to cmd
-	if opts.Runtime == "deno" {
-		env = append(env, fmt.Sprintf("XK6_EXTERNAL_JS_ENTRY=%s", opts.Entry))
-		env = append(env, fmt.Sprintf("XK6_EXTERNAL_JS_PAYLOAD=%s", string(payloadBytes)))
 	}
 	cmd.Env = env
 

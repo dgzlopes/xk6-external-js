@@ -104,27 +104,38 @@ const getEnv = () => {
  *
  * Usage (Node.js CommonJS):
  *   const { run } = require("xk6-external-js-helpers");
- *   module.exports = run(async ({ payload, metrics, env, logger }) => {
- *     const myCounter = metrics.counter("my_counter");
- *     myCounter.add(1);
+ *   module.exports = run(async (ctx) => {
+ *     const user = ctx.payload.user;
+ *     ctx.metrics.counter("my_counter").add(1);
+ *     console.log(`VU ${ctx.execution.vu.id}, Iteration ${ctx.execution.vu.iteration}`);
  *     return { result: "data" };
  *   });
  *
  * Usage (ES Modules - Node.js/Deno/Bun):
  *   import { run } from "xk6-external-js-helpers";
- *   export default run(async ({ payload, metrics, env, logger }) => {
- *     const myCounter = metrics.counter("my_counter");
- *     myCounter.add(1);
+ *   export default run(async (ctx) => {
+ *     const user = ctx.payload.user;
+ *     ctx.metrics.counter("my_counter").add(1);
+ *     console.log(`VU ${ctx.execution.vu.id}, Iteration ${ctx.execution.vu.iteration}`);
  *     return { result: "data" };
  *   });
  */
 export function run(fn) {
-  return async function (payload, ctx = {}) {
+  return async function (ctx = {}) {
+    // Ensure ctx has required structure
     const metrics = new MetricsCollector();
-    const env = ctx.env || getEnv();
-    const logger = ctx.logger || console;
+    
+    // Build full ctx object with metrics
+    const fullCtx = {
+      payload: ctx.payload || {},
+      metrics: metrics,
+      env: ctx.env || getEnv(),
+      execution: ctx.execution || {
+        vu: { id: 0, iteration: 0, scenario: "" },
+      },
+    };
 
-    const result = await fn({ payload, metrics, env, logger });
+    const result = await fn(fullCtx);
 
     const safeResult = result && typeof result === "object" ? result : {};
     const metricsData = metrics._collect();

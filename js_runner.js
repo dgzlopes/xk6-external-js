@@ -8,18 +8,11 @@ const isNode = !isDeno && !isBun && typeof process !== "undefined" && process.ve
 
 (async () => {
   try {
-    // Get entry path and payload based on runtime
-    let entryPath, payloadJson;
-    
-    if (isDeno) {
-      // Deno: read from environment variables
-      entryPath = Deno.env.get("XK6_EXTERNAL_JS_ENTRY");
-      payloadJson = Deno.env.get("XK6_EXTERNAL_JS_PAYLOAD");
-    } else {
-      // Node/Bun: read from process.argv
-      entryPath = process.argv[1];
-      payloadJson = process.argv[2];
-    }
+    // Get entry path, payload, and execution context from command line arguments
+    // All runtimes (Node, Deno, Bun) receive arguments the same way
+    const entryPath = isDeno ? Deno.args[0] : process.argv[1];
+    const payloadJson = isDeno ? Deno.args[1] : process.argv[2];
+    const execContextJson = isDeno ? Deno.args[2] : process.argv[3];
 
     if (!entryPath) {
       throw new Error("Missing entry path argument");
@@ -29,6 +22,12 @@ const isNode = !isDeno && !isBun && typeof process !== "undefined" && process.ve
     }
 
     const payload = JSON.parse(payloadJson);
+    
+    // Parse execution context
+    let executionContext = {};
+    if (execContextJson) {
+      executionContext = JSON.parse(execContextJson);
+    }
 
     // Resolve full path based on runtime
     let fullPath;
@@ -106,17 +105,17 @@ const isNode = !isDeno && !isBun && typeof process !== "undefined" && process.ve
       flowFunction = flowModule.default || flowModule;
     }
 
-    // Get environment and logger based on runtime
+    // Get environment based on runtime
     const env = isDeno ? Deno.env.toObject() : process.env;
-    const logger = console;
 
-    // ctx can be extended later (logger, etc.)
+    // Build ctx object with payload, env, and execution context
     const ctx = {
+      payload,
       env,
-      logger,
+      execution: executionContext,
     };
 
-    const result = await flowFunction(payload, ctx);
+    const result = await flowFunction(ctx);
 
     console.log("__RESULT_START__");
     console.log(JSON.stringify(result || {}));
