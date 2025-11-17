@@ -58,3 +58,25 @@ A helper library (`xk6-external-js-helpers`) can be used to wrap your JavaScript
 ```bash
 npm install xk6-external-js-helpers
 ```
+
+## Using npm packages with Deno
+
+When using Deno, npm packages must be imported with the `npm:` prefix:
+
+```ts
+// lib.deno.ts
+import { run } from "../../helpers/index.js";
+import axios from "npm:axios@^1.6.0";  // Note the npm: prefix
+
+export default run(async ({ payload, metrics }) => {
+  const response = await axios.get("https://example.com/api");
+  return { data: response.data };
+});
+```
+
+**Important**: Deno requires the `npm:` specifier for all npm package imports. The extension automatically enables npm support with the `--allow-all` flag.
+
+For npm packages that require installation (like Playwright), you may need to run setup commands separately:
+```bash
+deno run --allow-all npm:playwright install
+```

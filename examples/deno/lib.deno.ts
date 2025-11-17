@@ -1,18 +1,17 @@
 import { run } from "../../helpers/index.js";
+import { chromium } from "npm:playwright@^1.40.0";
 
 export default run(async ({ payload, metrics }) => {
-  // Custom k6 metrics
   metrics.counter("deno_requests").add(1);
 
-  // Deno's native crypto API
-  const encoder = new TextEncoder();
-  const data = encoder.encode(JSON.stringify(payload));
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto('https://example.com/');
+  const title = await page.title();
+  await browser.close();
 
   return {
-    hash,
+    title,
     message: `Hello from Deno! Processed ${payload.user || "user"}`,
   };
 });

@@ -128,8 +128,13 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 		cmd = exec.CommandContext(ctx, "node", "-e", runnerScript, opts.Entry, string(payloadBytes))
 	case "deno":
 		// deno run --allow-all - (with entry and payload in env vars)
+		// --allow-all enables npm: specifier imports and all other permissions
 		cmd = exec.CommandContext(ctx, "deno", "run", "--allow-all", "-")
 		cmd.Stdin = strings.NewReader(runnerScript)
+		// Set working directory to ensure relative imports and npm packages resolve correctly
+		if wd, err := os.Getwd(); err == nil {
+			cmd.Dir = wd
+		}
 	case "bun":
 		// bun -e <runnerScript> <entry> <payloadJson>
 		cmd = exec.CommandContext(ctx, "bun", "-e", runnerScript, opts.Entry, string(payloadBytes))

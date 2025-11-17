@@ -6,11 +6,12 @@ export const options = {
 };
 
 export default function () {
-  console.log("Starting iteration test with Node.js interop...");
+  console.log("Starting iteration test with Node.js + Playwright...");
   
   const result = ext.run("./lib.node.js", {
     user: "alice",
   });
 
-  console.log("Received token:", result.token);
+  console.log("Received:", result.message);
+  console.log("Page title:", result.title);
 }

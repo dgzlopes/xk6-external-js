@@ -6,7 +6,7 @@ export const options = {
 };
 
 export default function () {
-  console.log("Starting iteration test with Deno interop...");
+  console.log("Starting iteration test with Deno + Playwright...");
   
   const result = ext.run("./lib.deno.ts", {
     user: "alice",
@@ -14,6 +14,6 @@ export default function () {
   });
 
   console.log("Received:", result.message);
-  console.log("Hash:", result.hash);
+  console.log("Page title:", result.title);
 }
 
