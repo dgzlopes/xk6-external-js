@@ -1,7 +1,7 @@
-import { run, metrics, checks } from "../../helpers/index.js";
+import { metrics, checks } from "../../helpers/index.js";
 import { chromium } from "npm:playwright@^1.40.0";
 
-export default run(async (ctx) => {
+export const handler = async (ctx) => {
   metrics.counter("deno_requests").add(1);
 
   const browser = await chromium.launch();
@@ -14,7 +14,7 @@ export default run(async (ctx) => {
 
   return {
     title,
-    message: `Hello from Deno! Processed ${ctx.payload.user || "user"} (VU ${ctx.execution.vu.id}, Iteration ${ctx.execution.vu.iteration})`,
+    message: `Hello from Deno! Processed ${ctx.payload.user || "user"} (VU ${ctx.vu.id}, Iteration ${ctx.iteration})`,
   };
-});
+};
 

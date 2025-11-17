@@ -1,6 +1,6 @@
 {
   "name": "xk6-external-js-helpers",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Helper library for xk6-external-js",
   "main": "index.js",
   "type": "module",

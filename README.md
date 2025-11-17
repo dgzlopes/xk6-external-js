@@ -37,10 +37,10 @@ export default function () {
 
 ```js
 // auth.node.js
-const { run, metrics, checks } = require("xk6-external-js-helpers");
+const { metrics, checks } = require("xk6-external-js-helpers");
 const crypto = require("crypto");
 
-module.exports = run(async (ctx) => {
+const handler = async (ctx) => {
   // Emit custom k6 metrics from the external runtime
   metrics.counter("auth_calls").add(1);
   
@@ -55,7 +55,9 @@ module.exports = run(async (ctx) => {
   checks.check("token_length_valid", token.length === 64);
 
   return { token };
-});
+};
+
+module.exports = { handler };
 ```
 ## More
 ### Supported Runtimes
@@ -77,7 +79,22 @@ ext.run("./lib.js", {
 });
 ```
 
-The `payload` is passed as `ctx.payload` in your external script, and whatever you return becomes the result in k6. Only JSON-serializable data can be passed (no functions, classes, or Buffers). Promises are automatically awaited.
+The `payload` is passed in the context object along with `env`, `vu`, and `iteration`. The context structure is:
+
+```js
+{
+  payload: { ... },      // Your payload data
+  env: { ... },          // Environment variables
+  vu: {                  // Virtual User info
+    id: 0,
+    iteration: 0,
+    scenario: ""
+  },
+  iteration: 0           // Convenience alias for vu.iteration
+}
+```
+
+Whatever you return from your handler becomes the result in k6. Only JSON-serializable data can be passed (no functions, classes, or Buffers). Promises are automatically awaited.
 
 If your external JS throws an error, it fails the k6 iteration and the error includes full stdout/stderr output. 
 
@@ -103,10 +120,25 @@ Benchmark results (5 VUs, 10s duration, [minimal function call](https://github.c
 ### Helpers Package
 
 The `xk6-external-js-helpers` package provides utilities to make the interop nicer:
-- `run(fn)` - Wraps your code and handles metrics/checks collection
 - `metrics` - Emit k6 metrics (counters, gauges, trends, rates)
 - `checks` - Create k6 checks
-- `ctx` - Execution context with payload, env vars, and VU info
+
+**Handler Pattern**: Export a `handler` function from your module. The system automatically wraps it with metrics and checks collection:
+
+```js
+// For ES modules (Deno, Bun, or Node with type: "module")
+export const handler = async (ctx) => {
+  // Access ctx.payload, ctx.env, ctx.vu, ctx.iteration
+  // Your code here
+};
+
+// For CommonJS (Node.js)
+const handler = async (ctx) => {
+  // Access ctx.payload, ctx.env, ctx.vu, ctx.iteration
+  // Your code here
+};
+module.exports = { handler };
+```
 
 Install it in your project with:
 

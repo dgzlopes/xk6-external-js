@@ -1,7 +1,7 @@
-const { run, metrics, checks } = require("../../helpers");
+const { metrics, checks } = require("../../helpers/index.js");
 const { chromium } = require('playwright');
 
-module.exports = run(async (ctx) => {
+const handler = async (ctx) => {
   metrics.counter("node_requests").add(1);
 
   const browser = await chromium.launch();
@@ -14,6 +14,8 @@ module.exports = run(async (ctx) => {
 
   return {
     title,
-    message: `Hello from Node.js! Processed ${ctx.payload.user || "user"} (VU ${ctx.execution.vu.id}, Iteration ${ctx.execution.vu.iteration})`,
+    message: `Hello from Node.js! Processed ${ctx.payload.user || "user"} (VU ${ctx.vu.id}, Iteration ${ctx.iteration})`,
   };
-});
+};
+
+module.exports = { handler };
