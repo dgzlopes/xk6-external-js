@@ -6,6 +6,15 @@ Run Node, Deno, or Bun code from your k6 tests so you can use:
 - Runtime standard libraries (e.g., fs, crypto, http)
 - Existing JavaScript/TypeScript code that doesn’t run in k6’s runtime
 
+## Prerequisites
+
+**To build the extension:**
+- Go 1.25+
+- [xk6](https://github.com/grafana/xk6)
+
+**To run tests:**
+- Node.js, Deno, or Bun installed and available in PATH
+
 ## Build
 
 ```bash
@@ -57,14 +66,24 @@ The runtime is auto-detected from the file extension:
 - `*.bun.js/ts` → Bun
 - Anything else → Node.js (default)
 
-You can also specify it explicitly:
+You can also specify it explicitly, along with other options:
 
 ```js
 ext.run("./lib.js", {
   payload: { user: "alice" },
-  runtime: "deno" // or "node" or "bun"
+  runtime: "deno", // or "node" or "bun"
+  env: { NODE_ENV: "production" },
+  timeout: "5s"
 });
 ```
+
+The `payload` is passed as `ctx.payload` in your external script, and whatever you return becomes the result in k6. Only JSON-serializable data can be passed (no functions, classes, or Buffers). Promises are automatically awaited.
+
+If your external JS throws an error, it fails the k6 iteration and the error includes full stdout/stderr output. `console.log` from external JS is captured but only appears in error messages when execution fails.
+
+### Security
+
+External runtimes have full access to the local filesystem and network. Deno is run with `--allow-all` (bypassing its permission system), and Node.js/Bun have no sandboxing by default.
 
 ### Performance
 Each call has ~25 ms of overhead because it spawns a new runtime process. This is usually fine when your external JS does meaningful work (crypto, I/O, etc.). However, this extension isn’t designed for **high-load scenarios**.
