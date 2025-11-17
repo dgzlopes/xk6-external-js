@@ -1,0 +1,30 @@
+{
+  "name": "xk6-external-js-helpers",
+  "version": "1.0.0",
+  "description": "Helper library for xk6-external-js",
+  "main": "index.js",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.js"
+    }
+  },
+  "keywords": [
+    "k6",
+    "load-testing",
+    "metrics",
+    "javascript",
+    "nodejs",
+    "deno",
+    "bun",
+    "testing",
+    "framework"
+  ],
+  "author": "",
+  "license": "MIT",
+  "files": [
+    "index.js"
+  ]
+}
+

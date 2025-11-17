@@ -1,4 +1,4 @@
-import js from "k6/x/js";
+import ext from "k6/x/external_js";
 
 export const options = {
   vus: 1,
@@ -8,7 +8,7 @@ export const options = {
 export default function () {
   console.log("Starting iteration test with Deno interop...");
   
-  const result = js.run("./lib.deno.ts", {
+  const result = ext.run("./lib.deno.ts", {
     user: "alice",
     runtime: "deno"
   });

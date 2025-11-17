@@ -1,4 +1,4 @@
-import js from "k6/x/js";
+import ext from "k6/x/external_js";
 
 export const options = {
   vus: 1,
@@ -8,7 +8,7 @@ export const options = {
 export default function () {
   console.log("Starting iteration with Node.js interop...");
   
-  const result = js.run("./lib.node.js", {
+  const result = ext.run("./lib.node.js", {
     payload: { user: "alice" },
     env: {
       THIS_IS_FROM_K6: "this_is_from_k6",

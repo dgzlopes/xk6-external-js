@@ -103,7 +103,7 @@ const getEnv = () => {
  * Works with Node.js, Deno, and Bun
  *
  * Usage (Node.js CommonJS):
- *   const { run } = require("./js_k6_helpers");
+ *   const { run } = require("xk6-external-js-helpers");
  *   module.exports = run(async ({ payload, metrics, env, logger }) => {
  *     const myCounter = metrics.counter("my_counter");
  *     myCounter.add(1);
@@ -111,7 +111,7 @@ const getEnv = () => {
  *   });
  *
  * Usage (ES Modules - Node.js/Deno/Bun):
- *   import { run } from "./js_k6_helpers.js";
+ *   import { run } from "xk6-external-js-helpers";
  *   export default run(async ({ payload, metrics, env, logger }) => {
  *     const myCounter = metrics.counter("my_counter");
  *     myCounter.add(1);

@@ -1,4 +1,4 @@
-# xk6-js
+# xk6-external-js
 
 Bring Node, Deno, and Bun into your Grafana k6 tests. Seamless interop. Endless possibilities.
 
@@ -15,10 +15,10 @@ Yep. With this extension, your k6 tests can call out a external JavaScript runti
 
 ```js
 // test.js
-import js from "k6/x/js";
+import ext from "k6/x/external_js";
 
 export default function () {
-  const result = js.run("auth.node.js", {
+  const result = ext.run("auth.node.js", {
     user: "alice",
   });
 
@@ -26,7 +26,7 @@ export default function () {
 }
 ```
 
-Behind the scenes, `js.run()`:
+Behind the scenes, `ext.run()`:
 - Spins up a Node.js (or Deno/Bun) process.
 - Sends the payload over (plus environment variables, etc).
 - Runs your code.
@@ -34,9 +34,10 @@ Behind the scenes, `js.run()`:
 - Returns the result back to your k6 script.
 
 Here is what the `auth.node.js` file (running inside Node) looks like:
+
 ```js
 // auth.node.js
-const { run } = require("xk6_js_helpers");
+const { run } = require("xk6-external-js-helpers");
 const crypto = require("crypto");
 
 module.exports = run(async ({ payload, metrics }) => {
@@ -50,4 +51,10 @@ module.exports = run(async ({ payload, metrics }) => {
       .digest("hex"),
   };
 });
+```
+
+A helper library (`xk6-external-js-helpers`) can be used to wrap your JavaScript code, enable metrics collection, and many more things:
+
+```bash
+npm install xk6-external-js-helpers
 ```

@@ -1,4 +1,4 @@
-module xk6-js
+module xk6-external-js
 
 go 1.25.0
 

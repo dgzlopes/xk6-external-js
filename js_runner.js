@@ -13,8 +13,8 @@ const isNode = !isDeno && !isBun && typeof process !== "undefined" && process.ve
     
     if (isDeno) {
       // Deno: read from environment variables
-      entryPath = Deno.env.get("XK6_JS_ENTRY");
-      payloadJson = Deno.env.get("XK6_JS_PAYLOAD");
+      entryPath = Deno.env.get("XK6_EXTERNAL_JS_ENTRY");
+      payloadJson = Deno.env.get("XK6_EXTERNAL_JS_PAYLOAD");
     } else {
       // Node/Bun: read from process.argv
       entryPath = process.argv[1];

@@ -16,30 +16,30 @@ import (
 )
 
 //go:embed js_runner.js
-var jsRunnerScript string
+var runnerScript string
 
 // init is called by the Go runtime at application startup.
 func init() {
-	modules.Register("k6/x/js", &JSModule{})
+	modules.Register("k6/x/external_js", &ExternalJSModule{})
 }
 
-// JSModule is the root module for the JavaScript runtime interop extension
-type JSModule struct{}
+// ExternalJSModule is the root module for the external JavaScript runtime interop extension
+type ExternalJSModule struct{}
 
 // NewModuleInstance creates a new instance of the module for each VU
-func (*JSModule) NewModuleInstance(vu modules.VU) modules.Instance {
+func (*ExternalJSModule) NewModuleInstance(vu modules.VU) modules.Instance {
 	registry := vu.InitEnv().Registry
 
-	return &JS{
+	return &ExternalJS{
 		vu:            vu,
-		jsDuration:    registry.MustNewMetric("js_duration", metrics.Trend, metrics.Time),
+		jsDuration:    registry.MustNewMetric("external_js_duration", metrics.Trend, metrics.Time),
 		customMetrics: make(map[string]*metrics.Metric),
 		registry:      registry,
 	}
 }
 
-// JS is the type for our JavaScript runtime interop API.
-type JS struct {
+// ExternalJS is the type for our external JavaScript runtime interop API.
+type ExternalJS struct {
 	vu            modules.VU
 	jsDuration    *metrics.Metric
 	customMetrics map[string]*metrics.Metric
@@ -47,13 +47,13 @@ type JS struct {
 }
 
 // Exports returns the exports of the module
-func (j *JS) Exports() modules.Exports {
+func (j *ExternalJS) Exports() modules.Exports {
 	return modules.Exports{
 		Default: j,
 	}
 }
 
-// RunOptions represents the internal options we derive from js.run(...)
+// RunOptions represents the internal options we derive from ext.run(...)
 type RunOptions struct {
 	Runtime string            `json:"runtime"`
 	Entry   string            `json:"entry"`
@@ -62,21 +62,21 @@ type RunOptions struct {
 	Timeout string            `json:"timeout"`
 }
 
-// Run executes a JavaScript flow and returns the result.
+// Run executes an external JavaScript flow and returns the result.
 //
 // Supports both:
 //
-//	js.run("lib.js", { user: "alice" })
+//	ext.run("lib.js", { user: "alice" })
 //
 // and the "advanced" form:
 //
-//	js.run("lib.js", {
+//	ext.run("lib.js", {
 //	  payload: { user: "alice" },
 //	  env: { NODE_ENV: "production" },
 //	  timeout: "5s",
 //	  runtime: "node", // "node", "deno", or "bun"
 //	})
-func (j *JS) Run(flowPath string, payloadOrOptions interface{}) (map[string]interface{}, error) {
+func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[string]interface{}, error) {
 	// 1) Interpret second argument
 	opts, err := parseRunOptionsFromArgs(flowPath, payloadOrOptions)
 	if err != nil {
@@ -120,19 +120,19 @@ func (j *JS) Run(flowPath string, payloadOrOptions interface{}) (map[string]inte
 		defer cancel()
 	}
 
-	// 4) Execute JavaScript runtime with embedded runner script
+	// 4) Execute external JavaScript runtime with embedded runner script
 	var cmd *exec.Cmd
 	switch opts.Runtime {
 	case "node":
 		// node -e <runnerScript> <entry> <payloadJson>
-		cmd = exec.CommandContext(ctx, "node", "-e", jsRunnerScript, opts.Entry, string(payloadBytes))
+		cmd = exec.CommandContext(ctx, "node", "-e", runnerScript, opts.Entry, string(payloadBytes))
 	case "deno":
 		// deno run --allow-all - (with entry and payload in env vars)
 		cmd = exec.CommandContext(ctx, "deno", "run", "--allow-all", "-")
-		cmd.Stdin = strings.NewReader(jsRunnerScript)
+		cmd.Stdin = strings.NewReader(runnerScript)
 	case "bun":
 		// bun -e <runnerScript> <entry> <payloadJson>
-		cmd = exec.CommandContext(ctx, "bun", "-e", jsRunnerScript, opts.Entry, string(payloadBytes))
+		cmd = exec.CommandContext(ctx, "bun", "-e", runnerScript, opts.Entry, string(payloadBytes))
 	default:
 		return nil, fmt.Errorf("unsupported runtime: %s", opts.Runtime)
 	}
@@ -144,8 +144,8 @@ func (j *JS) Run(flowPath string, payloadOrOptions interface{}) (map[string]inte
 	}
 	// Set env vars for Deno before assigning to cmd
 	if opts.Runtime == "deno" {
-		env = append(env, fmt.Sprintf("XK6_JS_ENTRY=%s", opts.Entry))
-		env = append(env, fmt.Sprintf("XK6_JS_PAYLOAD=%s", string(payloadBytes)))
+		env = append(env, fmt.Sprintf("XK6_EXTERNAL_JS_ENTRY=%s", opts.Entry))
+		env = append(env, fmt.Sprintf("XK6_EXTERNAL_JS_PAYLOAD=%s", string(payloadBytes)))
 	}
 	cmd.Env = env
 
@@ -187,7 +187,7 @@ func (j *JS) Run(flowPath string, payloadOrOptions interface{}) (map[string]inte
 		return nil, fmt.Errorf("failed to extract result: %w\nOutput: %s", err, string(output))
 	}
 
-	// 8) Automatically record metrics from JavaScript runtime (__k6_metrics__)
+	// 8) Automatically record metrics from external JavaScript runtime (__k6_metrics__)
 	if metricsArray, ok := result["__k6_metrics__"].([]interface{}); ok {
 		if state != nil {
 			for _, metricEntry := range metricsArray {
@@ -253,7 +253,7 @@ func (j *JS) Run(flowPath string, payloadOrOptions interface{}) (map[string]inte
 	return result, nil
 }
 
-// parseRunOptionsFromArgs interprets the second argument to js.run().
+// parseRunOptionsFromArgs interprets the second argument to ext.run().
 //
 // If the second argument is a plain value (e.g. { user: "alice" }),
 // it becomes the payload.
@@ -316,7 +316,7 @@ func parseRunOptionsFromArgs(entry string, arg interface{}) (*RunOptions, error)
 }
 
 // extractMetricValue converts interface{} to float64 for metrics
-func (j *JS) extractMetricValue(value interface{}) float64 {
+func (j *ExternalJS) extractMetricValue(value interface{}) float64 {
 	switch v := value.(type) {
 	case float64:
 		return v
@@ -332,7 +332,7 @@ func (j *JS) extractMetricValue(value interface{}) float64 {
 	}
 }
 
-// extractResult parses the JSON result from JavaScript runtime output
+// extractResult parses the JSON result from external JavaScript runtime output
 func extractResult(output string) (map[string]interface{}, error) {
 	// Find content between __RESULT_START__ and __RESULT_END__
 	re := regexp.MustCompile(`__RESULT_START__\s*([\s\S]*?)\s*__RESULT_END__`)

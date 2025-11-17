@@ -1,4 +1,4 @@
-import { run } from "../../js_k6_helpers.js";
+import { run } from "../../helpers/index.js";
 
 export default run(async ({ payload, metrics }) => {
   // Custom k6 metrics
