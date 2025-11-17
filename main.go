@@ -361,7 +361,7 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 // it's treated as an options object.
 func parseRunOptionsFromArgs(entry string, arg interface{}) (*RunOptions, error) {
 	opts := &RunOptions{
-		Runtime: "node",
+		Runtime: "",
 		Entry:   entry,
 		Payload: arg,
 		Env:     make(map[string]string),

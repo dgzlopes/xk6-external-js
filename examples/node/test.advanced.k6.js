@@ -17,5 +17,6 @@ export default function () {
     runtime: "node"
   });
   
-  console.log("Received token:", result.token);
+  console.log("Received:", result.message);
+  console.log("Page title:", result.title);
 }

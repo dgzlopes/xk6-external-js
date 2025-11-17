@@ -1,15 +1,9 @@
-// Unified JavaScript runner for Node.js, Deno, and Bun
-// Detects runtime and adapts accordingly
-
-// Detect runtime
 const isDeno = typeof Deno !== "undefined";
 const isBun = typeof Bun !== "undefined";
 const isNode = !isDeno && !isBun && typeof process !== "undefined" && process.versions?.node;
 
 (async () => {
   try {
-    // Get entry path, payload, and execution context from command line arguments
-    // All runtimes (Node, Deno, Bun) receive arguments the same way
     const entryPath = isDeno ? Deno.args[0] : process.argv[1];
     const payloadJson = isDeno ? Deno.args[1] : process.argv[2];
     const execContextJson = isDeno ? Deno.args[2] : process.argv[3];
@@ -23,46 +17,32 @@ const isNode = !isDeno && !isBun && typeof process !== "undefined" && process.ve
 
     const payload = JSON.parse(payloadJson);
     
-    // Parse execution context
     let executionContext = {};
     if (execContextJson) {
       executionContext = JSON.parse(execContextJson);
     }
 
-    // Resolve full path based on runtime
     let fullPath;
     if (isDeno) {
-      // Deno: use file:// URLs
       if (!entryPath.startsWith("file://") && !entryPath.startsWith("http://") && !entryPath.startsWith("https://")) {
         try {
           const absPath = await Deno.realPath(entryPath);
           fullPath = `file://${absPath}`;
         } catch {
-          // Try with extensions
-          try {
-            const jsPath = await Deno.realPath(entryPath + ".js");
-            fullPath = `file://${jsPath}`;
-          } catch {
-            try {
-              const tsPath = await Deno.realPath(entryPath + ".ts");
-              fullPath = `file://${tsPath}`;
-            } catch {
-              const cwd = Deno.cwd();
-              fullPath = `file://${cwd}/${entryPath}`;
-            }
-          }
+          const cwd = Deno.cwd();
+          const baseUrl = `file://${cwd}/`;
+          const resolvedUrl = new URL(entryPath, baseUrl);
+          fullPath = resolvedUrl.href;
         }
       } else {
         fullPath = entryPath;
       }
     } else {
-      // Node/Bun: use file system paths
       let path, fs;
       if (isNode) {
         path = require("path");
         fs = require("fs");
       } else {
-        // Bun - use dynamic import
         const pathMod = await import("path");
         const fsMod = await import("fs");
         path = pathMod.default || pathMod;
@@ -74,13 +54,11 @@ const isNode = !isDeno && !isBun && typeof process !== "undefined" && process.ve
         fullPath += ".js";
       }
 
-      // Check if file exists
       if (isNode) {
         if (!fs.existsSync(fullPath)) {
           throw new Error("Flow not found: " + fullPath);
         }
       } else {
-        // Bun - use async stat
         try {
           await fs.promises.stat(fullPath);
         } catch {
@@ -89,26 +67,33 @@ const isNode = !isDeno && !isBun && typeof process !== "undefined" && process.ve
       }
     }
 
-    // Import the flow function
     let flowFunction;
     if (isNode && typeof require !== "undefined") {
-      // Node: try require first (for CommonJS), then dynamic import
       try {
-        flowFunction = require(fullPath);
+        const required = require(fullPath);
+        if (typeof required === "function") {
+          flowFunction = required;
+        } else if (required && typeof required.default === "function") {
+          flowFunction = required.default;
+        } else {
+          const flowModule = await import(fullPath);
+          flowFunction = flowModule.default || flowModule;
+        }
       } catch {
         const flowModule = await import(fullPath);
         flowFunction = flowModule.default || flowModule;
       }
     } else {
-      // Deno/Bun: use dynamic import
       const flowModule = await import(fullPath);
       flowFunction = flowModule.default || flowModule;
     }
 
-    // Get environment based on runtime
+    if (typeof flowFunction !== "function") {
+      throw new Error(`Expected a function but got ${typeof flowFunction}. Make sure your module exports a function (default export or module.exports).`);
+    }
+
     const env = isDeno ? Deno.env.toObject() : process.env;
 
-    // Build ctx object with payload, env, and execution context
     const ctx = {
       payload,
       env,
@@ -121,7 +106,6 @@ const isNode = !isDeno && !isBun && typeof process !== "undefined" && process.ve
     console.log(JSON.stringify(result || {}));
     console.log("__RESULT_END__");
     
-    // Exit based on runtime
     if (isDeno) {
       Deno.exit(0);
     } else {

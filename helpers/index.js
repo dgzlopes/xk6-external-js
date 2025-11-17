@@ -1,8 +1,3 @@
-/**
- * k6 metrics library for JavaScript runtimes (Node.js, Deno, Bun)
- * Allows recording k6 metrics from within JavaScript flows
- */
-
 class Counter {
   constructor(name, collector) {
     this.name = name;
@@ -99,7 +94,6 @@ class ChecksCollector {
   }
 }
 
-// Detect runtime for environment access
 const isDeno = typeof Deno !== "undefined";
 const getEnv = () => {
   if (isDeno) {
@@ -108,11 +102,9 @@ const getEnv = () => {
   return typeof process !== "undefined" ? process.env : {};
 };
 
-// Current execution context (per-execution collectors)
 let currentMetrics = null;
 let currentChecks = null;
 
-// Module-level API objects that delegate to current execution
 const metricsAPI = {
   counter(name) {
     if (!currentMetrics) throw new Error("metrics can only be used inside run()");
@@ -139,44 +131,17 @@ const checksAPI = {
   },
 };
 
-/**
- * Wrapper function to create k6-compatible JavaScript flows
- * Works with Node.js, Deno, and Bun
- *
- * Usage (Node.js CommonJS):
- *   const { run, metrics, checks } = require("xk6-external-js-helpers");
- *   module.exports = run(async (ctx) => {
- *     const user = ctx.payload.user;
- *     metrics.counter("my_counter").add(1);
- *     checks.check("user_exists", user !== undefined);
- *     console.log(`VU ${ctx.execution.vu.id}, Iteration ${ctx.execution.vu.iteration}`);
- *     return { result: "data" };
- *   });
- *
- * Usage (ES Modules - Node.js/Deno/Bun):
- *   import { run, metrics, checks } from "xk6-external-js-helpers";
- *   export default run(async (ctx) => {
- *     const user = ctx.payload.user;
- *     metrics.counter("my_counter").add(1);
- *     checks.check("user_exists", user !== undefined);
- *     console.log(`VU ${ctx.execution.vu.id}, Iteration ${ctx.execution.vu.iteration}`);
- *     return { result: "data" };
- *   });
- */
 export function run(fn) {
   return async function (ctx = {}) {
-    // Create fresh collectors for this execution
     const metrics = new MetricsCollector();
     const checks = new ChecksCollector();
     
-    // Set as current execution context
     const prevMetrics = currentMetrics;
     const prevChecks = currentChecks;
     currentMetrics = metrics;
     currentChecks = checks;
     
     try {
-      // Build ctx object with only raw data (payload, env, execution)
       const fullCtx = {
         payload: ctx.payload || {},
         env: ctx.env || getEnv(),
@@ -193,25 +158,21 @@ export function run(fn) {
         safeResult.__k6_metrics__ = metricsData;
       }
       
-      // Add checks to result if any were recorded
       if (checks.checks.length > 0) {
         safeResult.__k6_checks__ = checks.checks;
       }
 
       return safeResult;
     } finally {
-      // Restore previous execution context
       currentMetrics = prevMetrics;
       currentChecks = prevChecks;
     }
   };
 }
 
-// Export module-level APIs
 export const metrics = metricsAPI;
 export const checks = checksAPI;
 
-// Also export as CommonJS for Node.js compatibility
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { run, metrics, checks };
 }

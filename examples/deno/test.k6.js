@@ -10,7 +10,6 @@ export default function () {
   
   const result = ext.run("./lib.deno.ts", {
     user: "alice",
-    runtime: "deno"
   });
 
   console.log("Received:", result.message);

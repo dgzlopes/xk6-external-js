@@ -10,7 +10,6 @@ export default function () {
   
   const result = ext.run("./lib.bun.js", {
     user: "alice",
-    runtime: "bun"
   });
 
   console.log("Received:", result.message);
