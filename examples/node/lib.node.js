@@ -1,4 +1,4 @@
-const { run } = require("../node_k6_helpers");
+const { run } = require("../../js_k6_helpers");
 const { chromium, devices } = require('playwright');
 const crypto = require("crypto");
 

@@ -1,6 +1,6 @@
 /**
- * k6 metrics library for Node.js
- * Allows recording k6 metrics from within Node.js flows
+ * k6 metrics library for JavaScript runtimes (Node.js, Deno, Bun)
+ * Allows recording k6 metrics from within JavaScript flows
  */
 
 class Counter {
@@ -89,22 +89,39 @@ class MetricsCollector {
   }
 }
 
+// Detect runtime for environment access
+const isDeno = typeof Deno !== "undefined";
+const getEnv = () => {
+  if (isDeno) {
+    return Deno.env.toObject();
+  }
+  return typeof process !== "undefined" ? process.env : {};
+};
+
 /**
- * Wrapper function to create k6-compatible Node.js flows
+ * Wrapper function to create k6-compatible JavaScript flows
+ * Works with Node.js, Deno, and Bun
  *
- * Usage:
- *   const { run } = require("../node_k6_helpers");
+ * Usage (Node.js CommonJS):
+ *   const { run } = require("./js_k6_helpers");
  *   module.exports = run(async ({ payload, metrics, env, logger }) => {
  *     const myCounter = metrics.counter("my_counter");
  *     myCounter.add(1);
- *     logger.info("Hello from Node!", env.NODE_ENV);
+ *     return { result: "data" };
+ *   });
+ *
+ * Usage (ES Modules - Node.js/Deno/Bun):
+ *   import { run } from "./js_k6_helpers.js";
+ *   export default run(async ({ payload, metrics, env, logger }) => {
+ *     const myCounter = metrics.counter("my_counter");
+ *     myCounter.add(1);
  *     return { result: "data" };
  *   });
  */
-function run(fn) {
+export function run(fn) {
   return async function (payload, ctx = {}) {
     const metrics = new MetricsCollector();
-    const env = ctx.env || process.env;
+    const env = ctx.env || getEnv();
     const logger = ctx.logger || console;
 
     const result = await fn({ payload, metrics, env, logger });
@@ -119,4 +136,8 @@ function run(fn) {
   };
 }
 
-module.exports = { run };
+// Also export as CommonJS for Node.js compatibility
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { run };
+}
+

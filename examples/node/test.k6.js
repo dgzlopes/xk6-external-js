@@ -2,7 +2,7 @@ import js from "k6/x/js";
 
 export const options = {
   vus: 1,
-  duration: "30s",
+  duration: "5s",
 };
 
 export default function () {

@@ -1,4 +1,4 @@
-package node
+package js
 
 import (
 	"context"
@@ -15,42 +15,41 @@ import (
 	"go.k6.io/k6/metrics"
 )
 
-//go:embed node_runner.js
-var runnerScript string
+//go:embed js_runner.js
+var jsRunnerScript string
 
 // init is called by the Go runtime at application startup.
 func init() {
-	// Keep the current extension name for now: "k6/x/js"
-	modules.Register("k6/x/js", &NodeModule{})
+	modules.Register("k6/x/js", &JSModule{})
 }
 
-// NodeModule is the root module for the Node.js interop extension
-type NodeModule struct{}
+// JSModule is the root module for the JavaScript runtime interop extension
+type JSModule struct{}
 
 // NewModuleInstance creates a new instance of the module for each VU
-func (*NodeModule) NewModuleInstance(vu modules.VU) modules.Instance {
+func (*JSModule) NewModuleInstance(vu modules.VU) modules.Instance {
 	registry := vu.InitEnv().Registry
 
-	return &Node{
+	return &JS{
 		vu:            vu,
-		nodeDuration:  registry.MustNewMetric("node_duration", metrics.Trend, metrics.Time),
+		jsDuration:    registry.MustNewMetric("js_duration", metrics.Trend, metrics.Time),
 		customMetrics: make(map[string]*metrics.Metric),
 		registry:      registry,
 	}
 }
 
-// Node is the type for our Node.js interop API.
-type Node struct {
+// JS is the type for our JavaScript runtime interop API.
+type JS struct {
 	vu            modules.VU
-	nodeDuration  *metrics.Metric
+	jsDuration    *metrics.Metric
 	customMetrics map[string]*metrics.Metric
 	registry      *metrics.Registry
 }
 
 // Exports returns the exports of the module
-func (n *Node) Exports() modules.Exports {
+func (j *JS) Exports() modules.Exports {
 	return modules.Exports{
-		Default: n,
+		Default: j,
 	}
 }
 
@@ -63,21 +62,21 @@ type RunOptions struct {
 	Timeout string            `json:"timeout"`
 }
 
-// Run executes a Node.js flow and returns the result.
+// Run executes a JavaScript flow and returns the result.
 //
 // Supports both:
 //
-//	node.run("lib.node.js", { user: "alice" })
+//	js.run("lib.js", { user: "alice" })
 //
 // and the "advanced" form:
 //
-//	node.run("lib.node.js", {
+//	js.run("lib.js", {
 //	  payload: { user: "alice" },
 //	  env: { NODE_ENV: "production" },
 //	  timeout: "5s",
-//	  runtime: "node", // future-proof, only "node" works now
+//	  runtime: "node", // "node", "deno", or "bun"
 //	})
-func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]interface{}, error) {
+func (j *JS) Run(flowPath string, payloadOrOptions interface{}) (map[string]interface{}, error) {
 	// 1) Interpret second argument
 	opts, err := parseRunOptionsFromArgs(flowPath, payloadOrOptions)
 	if err != nil {
@@ -89,8 +88,10 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 		opts.Runtime = "node"
 	}
 
-	if opts.Runtime != "node" {
-		return nil, fmt.Errorf("unsupported runtime %q (only 'node' is implemented for now)", opts.Runtime)
+	// Validate runtime
+	validRuntimes := map[string]bool{"node": true, "deno": true, "bun": true}
+	if !validRuntimes[opts.Runtime] {
+		return nil, fmt.Errorf("unsupported runtime %q (supported: node, deno, bun)", opts.Runtime)
 	}
 
 	if opts.Entry == "" {
@@ -104,7 +105,7 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 	}
 
 	// 3) Build context with optional timeout
-	ctx := n.vu.Context()
+	ctx := j.vu.Context()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -119,14 +120,32 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 		defer cancel()
 	}
 
-	// 4) Execute Node.js with embedded runner script
-	// node -e <runnerScript> <entry> <payloadJson>
-	cmd := exec.CommandContext(ctx, "node", "-e", runnerScript, opts.Entry, string(payloadBytes))
+	// 4) Execute JavaScript runtime with embedded runner script
+	var cmd *exec.Cmd
+	switch opts.Runtime {
+	case "node":
+		// node -e <runnerScript> <entry> <payloadJson>
+		cmd = exec.CommandContext(ctx, "node", "-e", jsRunnerScript, opts.Entry, string(payloadBytes))
+	case "deno":
+		// deno run --allow-all - (with entry and payload in env vars)
+		cmd = exec.CommandContext(ctx, "deno", "run", "--allow-all", "-")
+		cmd.Stdin = strings.NewReader(jsRunnerScript)
+	case "bun":
+		// bun -e <runnerScript> <entry> <payloadJson>
+		cmd = exec.CommandContext(ctx, "bun", "-e", jsRunnerScript, opts.Entry, string(payloadBytes))
+	default:
+		return nil, fmt.Errorf("unsupported runtime: %s", opts.Runtime)
+	}
 
 	// 5) Env: base env + overrides
 	env := os.Environ()
 	for k, v := range opts.Env {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+	// Set env vars for Deno before assigning to cmd
+	if opts.Runtime == "deno" {
+		env = append(env, fmt.Sprintf("XK6_JS_ENTRY=%s", opts.Entry))
+		env = append(env, fmt.Sprintf("XK6_JS_PAYLOAD=%s", string(payloadBytes)))
 	}
 	cmd.Env = env
 
@@ -135,15 +154,15 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 	duration := time.Since(start)
 
 	// 6) Record the duration metric
-	state := n.vu.State()
+	state := j.vu.State()
 	if state != nil {
 		metricTags := state.Tags.GetCurrentValues().Tags.WithTagsFromMap(
 			map[string]string{"flow": opts.Entry, "runtime": opts.Runtime},
 		)
 
-		metrics.PushIfNotDone(n.vu.Context(), state.Samples, metrics.Sample{
+		metrics.PushIfNotDone(j.vu.Context(), state.Samples, metrics.Sample{
 			TimeSeries: metrics.TimeSeries{
-				Metric: n.nodeDuration,
+				Metric: j.jsDuration,
 				Tags:   metricTags,
 			},
 			Time:  time.Now(),
@@ -153,13 +172,13 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 
 	// Handle timeout separately
 	if ctx.Err() == context.DeadlineExceeded {
-		return nil, fmt.Errorf("node runtime timed out after %s (entry=%s): %w\nOutput: %s",
-			opts.Timeout, opts.Entry, ctx.Err(), string(output))
+		return nil, fmt.Errorf("%s runtime timed out after %s (entry=%s): %w\nOutput: %s",
+			opts.Runtime, opts.Timeout, opts.Entry, ctx.Err(), string(output))
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute node flow (entry=%s): %w\nOutput: %s",
-			opts.Entry, err, string(output))
+		return nil, fmt.Errorf("failed to execute %s flow (entry=%s): %w\nOutput: %s",
+			opts.Runtime, opts.Entry, err, string(output))
 	}
 
 	// 7) Extract result from output
@@ -168,7 +187,7 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 		return nil, fmt.Errorf("failed to extract result: %w\nOutput: %s", err, string(output))
 	}
 
-	// 8) Automatically record metrics from Node.js (__k6_metrics__)
+	// 8) Automatically record metrics from JavaScript runtime (__k6_metrics__)
 	if metricsArray, ok := result["__k6_metrics__"].([]interface{}); ok {
 		if state != nil {
 			for _, metricEntry := range metricsArray {
@@ -179,13 +198,13 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 
 				metricName, _ := metricData["name"].(string)
 				metricType, _ := metricData["type"].(string)
-				metricValue := n.extractMetricValue(metricData["value"])
+				metricValue := j.extractMetricValue(metricData["value"])
 				if metricValue == 0 && metricData["value"] != nil && metricData["value"] != 0.0 {
 					continue
 				}
 
 				// Get or create the metric with appropriate type
-				metric, exists := n.customMetrics[metricName]
+				metric, exists := j.customMetrics[metricName]
 				if !exists {
 					var metricKind metrics.MetricType
 					switch metricType {
@@ -200,8 +219,8 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 					default:
 						metricKind = metrics.Counter
 					}
-					metric = n.registry.MustNewMetric(metricName, metricKind)
-					n.customMetrics[metricName] = metric
+					metric = j.registry.MustNewMetric(metricName, metricKind)
+					j.customMetrics[metricName] = metric
 				}
 
 				// Parse custom tags
@@ -217,7 +236,7 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 				// Merge with state tags
 				metricTags := state.Tags.GetCurrentValues().Tags.WithTagsFromMap(tagsMap)
 
-				metrics.PushIfNotDone(n.vu.Context(), state.Samples, metrics.Sample{
+				metrics.PushIfNotDone(j.vu.Context(), state.Samples, metrics.Sample{
 					TimeSeries: metrics.TimeSeries{
 						Metric: metric,
 						Tags:   metricTags,
@@ -234,7 +253,7 @@ func (n *Node) Run(flowPath string, payloadOrOptions interface{}) (map[string]in
 	return result, nil
 }
 
-// parseRunOptionsFromArgs interprets the second argument to node.run().
+// parseRunOptionsFromArgs interprets the second argument to js.run().
 //
 // If the second argument is a plain value (e.g. { user: "alice" }),
 // it becomes the payload.
@@ -297,7 +316,7 @@ func parseRunOptionsFromArgs(entry string, arg interface{}) (*RunOptions, error)
 }
 
 // extractMetricValue converts interface{} to float64 for metrics
-func (n *Node) extractMetricValue(value interface{}) float64 {
+func (j *JS) extractMetricValue(value interface{}) float64 {
 	switch v := value.(type) {
 	case float64:
 		return v
@@ -313,7 +332,7 @@ func (n *Node) extractMetricValue(value interface{}) float64 {
 	}
 }
 
-// extractResult parses the JSON result from Node.js output
+// extractResult parses the JSON result from JavaScript runtime output
 func extractResult(output string) (map[string]interface{}, error) {
 	// Find content between __RESULT_START__ and __RESULT_END__
 	re := regexp.MustCompile(`__RESULT_START__\s*([\s\S]*?)\s*__RESULT_END__`)
