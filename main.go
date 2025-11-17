@@ -32,18 +32,20 @@ func (*ExternalJSModule) NewModuleInstance(vu modules.VU) modules.Instance {
 
 	return &ExternalJS{
 		vu:            vu,
-		jsDuration:    registry.MustNewMetric("external_js_duration", metrics.Trend, metrics.Time),
-		customMetrics: make(map[string]*metrics.Metric),
-		registry:      registry,
+		jsIterationDuration: registry.MustNewMetric("external_js_iteration_duration", metrics.Trend, metrics.Time),
+		jsIterations:        registry.MustNewMetric("external_js_iterations", metrics.Counter),
+		customMetrics:       make(map[string]*metrics.Metric),
+		registry:            registry,
 	}
 }
 
 // ExternalJS is the type for our external JavaScript runtime interop API.
 type ExternalJS struct {
-	vu            modules.VU
-	jsDuration    *metrics.Metric
-	customMetrics map[string]*metrics.Metric
-	registry      *metrics.Registry
+	vu                 modules.VU
+	jsIterationDuration *metrics.Metric
+	jsIterations        *metrics.Metric
+	customMetrics       map[string]*metrics.Metric
+	registry            *metrics.Registry
 }
 
 // Exports returns the exports of the module
@@ -167,7 +169,7 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 
 		metrics.PushIfNotDone(j.vu.Context(), state.Samples, metrics.Sample{
 			TimeSeries: metrics.TimeSeries{
-				Metric: j.jsDuration,
+				Metric: j.jsIterationDuration,
 				Tags:   metricTags,
 			},
 			Time:  time.Now(),
@@ -192,7 +194,23 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 		return nil, fmt.Errorf("failed to extract result: %w\nOutput: %s", err, string(output))
 	}
 
-	// 8) Automatically record metrics from external JavaScript runtime (__k6_metrics__)
+	// 8) Record the iterations counter (only for successful runs)
+	if state != nil {
+		metricTags := state.Tags.GetCurrentValues().Tags.WithTagsFromMap(
+			map[string]string{"flow": opts.Entry, "runtime": opts.Runtime},
+		)
+
+		metrics.PushIfNotDone(j.vu.Context(), state.Samples, metrics.Sample{
+			TimeSeries: metrics.TimeSeries{
+				Metric: j.jsIterations,
+				Tags:   metricTags,
+			},
+			Time:  time.Now(),
+			Value: 1,
+		})
+	}
+
+	// 9) Automatically record metrics from external JavaScript runtime (__k6_metrics__)
 	if metricsArray, ok := result["__k6_metrics__"].([]interface{}); ok {
 		if state != nil {
 			for _, metricEntry := range metricsArray {
