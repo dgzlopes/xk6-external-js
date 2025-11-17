@@ -79,7 +79,7 @@ ext.run("./lib.js", {
 });
 ```
 
-The `payload` is passed in the context object along with `env`, `vu`, and `iteration`. The context structure is:
+The `payload` is passed in the context object along with `env` and `vu`. The context structure is:
 
 ```js
 {
@@ -89,8 +89,7 @@ The `payload` is passed in the context object along with `env`, `vu`, and `itera
     id: 0,
     iteration: 0,
     scenario: ""
-  },
-  iteration: 0           // Convenience alias for vu.iteration
+  }
 }
 ```
 
@@ -128,13 +127,13 @@ The `xk6-external-js-helpers` package provides utilities to make the interop nic
 ```js
 // For ES modules (Deno, Bun, or Node with type: "module")
 export const handler = async (ctx) => {
-  // Access ctx.payload, ctx.env, ctx.vu, ctx.iteration
+  // Access ctx.payload, ctx.env, ctx.vu
   // Your code here
 };
 
 // For CommonJS (Node.js)
 const handler = async (ctx) => {
-  // Access ctx.payload, ctx.env, ctx.vu, ctx.iteration
+  // Access ctx.payload, ctx.env, ctx.vu
   // Your code here
 };
 module.exports = { handler };

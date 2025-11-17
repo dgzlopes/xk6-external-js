@@ -241,7 +241,6 @@ function createMetricsAndChecksWrapper(handler) {
       payload,
       env,
       vu,
-      iteration: vu.iteration,
       execution: executionContext, // Keep for backward compatibility if needed
     };
 

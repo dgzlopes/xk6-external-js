@@ -14,7 +14,7 @@ const handler = async (ctx) => {
 
   return {
     title,
-    message: `Hello from Node.js! Processed ${ctx.payload.user || "user"} (VU ${ctx.vu.id}, Iteration ${ctx.iteration})`,
+    message: `Hello from Node.js! Processed ${ctx.payload.user || "user"} (VU ${ctx.vu.id}, Iteration ${ctx.vu.iteration})`,
   };
 };
 

@@ -8,7 +8,7 @@ export const handler = async (ctx) => {
 
   return {
     hash: hash.toString(16),
-    message: `Hello from Bun! Processed ${ctx.payload.user || "user"} (VU ${ctx.vu.id}, Iteration ${ctx.iteration})`,
+    message: `Hello from Bun! Processed ${ctx.payload.user || "user"} (VU ${ctx.vu.id}, Iteration ${ctx.vu.iteration})`,
   };
 };
 

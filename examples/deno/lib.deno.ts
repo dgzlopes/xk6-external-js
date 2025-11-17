@@ -14,7 +14,7 @@ export const handler = async (ctx) => {
 
   return {
     title,
-    message: `Hello from Deno! Processed ${ctx.payload.user || "user"} (VU ${ctx.vu.id}, Iteration ${ctx.iteration})`,
+    message: `Hello from Deno! Processed ${ctx.payload.user || "user"} (VU ${ctx.vu.id}, Iteration ${ctx.vu.iteration})`,
   };
 };
 
