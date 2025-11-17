@@ -59,7 +59,33 @@ module.exports = run(async (ctx) => {
 });
 ```
 
-A helper library (`xk6-external-js-helpers`) can be used to wrap your JavaScript code, enable metrics collection, and many more things:
+## More
+
+### Supported Runtimes
+
+This extension supports three JavaScript runtimes: Node (default), Bun and Deno.
+
+```js
+// Defaults to Node.js
+ext.run("./lib.js", { user: "alice" });
+
+// Explicit runtime
+ext.run("./lib.js", {
+  payload: { user: "alice" },
+  runtime: "deno" // or "node" or "bun"
+});
+```
+
+### NPM Package
+
+The `xk6-external-js-helpers` package provides utilities for working with k6 from external JavaScript runtimes:
+
+- **`run(fn)`** Wraps your async function and handles metrics/checks collection
+- **`metrics`** Emit custom k6 metrics (counters, gauges, trends, rates)
+- **`checks`** Create k6 checks
+- **`ctx`** Access execution context (payload, environment variables, VU info)
+
+Install it in your project with
 
 ```bash
 npm install xk6-external-js-helpers
