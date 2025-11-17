@@ -48,8 +48,8 @@ module.exports = run(async (ctx) => {
   return { token };
 });
 ```
-
-## Runtimes
+## More
+### Supported Runtimes
 
 Runtime is auto-detected from the filename:
 - `*.node.js/ts` → Node.js
@@ -66,7 +66,7 @@ ext.run("./lib.js", {
 });
 ```
 
-## NPM Package
+### Helpers Package
 
 The `xk6-external-js-helpers` package provides utilities to make the interop nicer:
 - `run(fn)` - Wraps your code and handles metrics/checks collection
