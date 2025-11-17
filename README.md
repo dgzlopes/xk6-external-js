@@ -51,13 +51,13 @@ module.exports = run(async (ctx) => {
 ## More
 ### Supported Runtimes
 
-Runtime is auto-detected from the filename:
+The runtime is auto-detected from the file extension:
 - `*.node.js/ts` → Node.js
 - `*.deno.js/ts` → Deno
 - `*.bun.js/ts` → Bun
-- Otherwise defaults to Node.js
+- Anything else → Node.js (default)
 
-Alternatively, you can specify it manually:
+You can also specify it explicitly:
 
 ```js
 ext.run("./lib.js", {
