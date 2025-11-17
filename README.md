@@ -88,9 +88,9 @@ External runtimes have full access to the local filesystem and network.
 Deno is run with `--allow-all` (bypassing its permission system), and Node.js/Bun have no sandboxing by default.
 
 ### Performance
-Each call has ~25 ms of overhead because it spawns a new runtime process. This can be fine when your external JS does meaningful work. 
+Each call has ~25 ms of overhead because it spawns a new runtime process. This can be fine when your external JS does meaningful work. However, this extension isn’t designed for **load testing**. 
 
-However, this extension isn’t designed for **load testing**. k6’s built-in JavaScript runtime is optimized for high concurrency, so you should mix approaches if those are your requirements. For example, use Deno/Node/Bun in `setup()` and rely on k6’s runtime inside VU code.
+k6’s built-in JavaScript runtime is optimized for high concurrency, so you should mix approaches if those are your requirements. For example, use Deno/Node/Bun in `setup()` and rely on k6’s runtime inside VU code.
 
 Benchmark results (5 VUs, 10s duration, [minimal function call](https://github.com/dgzlopes/xk6-external-js/tree/main/bench)):
 
