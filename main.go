@@ -108,19 +108,32 @@ type RunOptions struct {
 //	  timeout: "5s",
 //	  runtime: "node", // "node", "deno", or "bun"
 //	})
+//
+// Runtime auto-detection: If runtime is not explicitly set, it will be
+// auto-detected from the filename pattern:
+//   - *.node.js or *.node.ts → "node"
+//   - *.deno.js or *.deno.ts → "deno"
+//   - *.bun.js or *.bun.ts → "bun"
+//
+// If no pattern matches, defaults to "node".
 func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[string]interface{}, error) {
-	// 1) Interpret second argument
 	opts, err := parseRunOptionsFromArgs(flowPath, payloadOrOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	// Default runtime
+	if opts.Runtime == "" {
+		filenameToCheck := opts.Entry
+		if filenameToCheck == "" {
+			filenameToCheck = flowPath
+		}
+		opts.Runtime = detectRuntimeFromFilename(filenameToCheck)
+	}
+
 	if opts.Runtime == "" {
 		opts.Runtime = "node"
 	}
 
-	// Validate runtime
 	validRuntimes := map[string]bool{"node": true, "deno": true, "bun": true}
 	if !validRuntimes[opts.Runtime] {
 		return nil, fmt.Errorf("unsupported runtime %q (supported: node, deno, bun)", opts.Runtime)
@@ -130,13 +143,11 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 		opts.Entry = flowPath
 	}
 
-	// 2) Serialize payload to JSON
 	payloadBytes, err := json.Marshal(opts.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	// 3) Build context with optional timeout
 	ctx := j.vu.Context()
 	if ctx == nil {
 		ctx = context.Background()
@@ -152,21 +163,17 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 		defer cancel()
 	}
 
-	// 4) Serialize execution context
 	execContext := j.getExecutionContext()
 	execContextBytes, err := json.Marshal(execContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal execution context: %w", err)
 	}
 
-	// 5) Execute external JavaScript runtime with embedded runner script
 	var cmd *exec.Cmd
 	switch opts.Runtime {
 	case "node":
-		// node -e <runnerScript> <entry> <payloadJson> <execContextJson>
 		cmd = exec.CommandContext(ctx, "node", "-e", runnerScript, opts.Entry, string(payloadBytes), string(execContextBytes))
 	case "deno":
-		// deno run --allow-all - <entry> <payloadJson> <execContextJson>
 		// --allow-all enables npm: specifier imports and all other permissions
 		// The script is piped via stdin, arguments come after -
 		cmd = exec.CommandContext(ctx, "deno", "run", "--allow-all", "-", opts.Entry, string(payloadBytes), string(execContextBytes))
@@ -176,13 +183,11 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 			cmd.Dir = wd
 		}
 	case "bun":
-		// bun -e <runnerScript> <entry> <payloadJson> <execContextJson>
 		cmd = exec.CommandContext(ctx, "bun", "-e", runnerScript, opts.Entry, string(payloadBytes), string(execContextBytes))
 	default:
 		return nil, fmt.Errorf("unsupported runtime: %s", opts.Runtime)
 	}
 
-	// 6) Env: base env + overrides
 	env := os.Environ()
 	for k, v := range opts.Env {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
@@ -193,7 +198,6 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 	output, err := cmd.CombinedOutput()
 	duration := time.Since(start)
 
-	// 6) Record the duration metric
 	state := j.vu.State()
 	if state != nil {
 		metricTags := state.Tags.GetCurrentValues().Tags.WithTagsFromMap(
@@ -210,7 +214,6 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 		})
 	}
 
-	// Handle timeout separately
 	if ctx.Err() == context.DeadlineExceeded {
 		return nil, fmt.Errorf("%s runtime timed out after %s (entry=%s): %w\nOutput: %s",
 			opts.Runtime, opts.Timeout, opts.Entry, ctx.Err(), string(output))
@@ -221,13 +224,11 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 			opts.Runtime, opts.Entry, err, string(output))
 	}
 
-	// 7) Extract result from output
 	result, err := extractResult(string(output))
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract result: %w\nOutput: %s", err, string(output))
 	}
 
-	// 8) Record the iterations counter (only for successful runs)
 	if state != nil {
 		metricTags := state.Tags.GetCurrentValues().Tags.WithTagsFromMap(
 			map[string]string{"flow": opts.Entry, "runtime": opts.Runtime},
@@ -243,7 +244,6 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 		})
 	}
 
-	// 9) Automatically record metrics from external JavaScript runtime (__k6_metrics__)
 	if metricsArray, ok := result["__k6_metrics__"].([]interface{}); ok {
 		if state != nil {
 			for _, metricEntry := range metricsArray {
@@ -259,7 +259,6 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 					continue
 				}
 
-				// Get or create the metric with appropriate type
 				metric, exists := j.customMetrics[metricName]
 				if !exists {
 					var metricKind metrics.MetricType
@@ -279,7 +278,6 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 					j.customMetrics[metricName] = metric
 				}
 
-				// Parse custom tags
 				tagsMap := make(map[string]string)
 				if tagsData, ok := metricData["tags"].(map[string]interface{}); ok {
 					for k, v := range tagsData {
@@ -289,7 +287,6 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 					}
 				}
 
-				// Merge with state tags
 				metricTags := state.Tags.GetCurrentValues().Tags.WithTagsFromMap(tagsMap)
 
 				metrics.PushIfNotDone(j.vu.Context(), state.Samples, metrics.Sample{
@@ -306,11 +303,9 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 		delete(result, "__k6_metrics__")
 	}
 
-	// 10) Automatically replay checks from external JavaScript runtime (__k6_checks__)
 	// Record checks as rate metrics (k6 checks are rate metrics under the hood)
 	if checksArray, ok := result["__k6_checks__"].([]interface{}); ok {
 		if state != nil {
-			// Get or create the checks metric (rate metric)
 			checkMetric, exists := j.customMetrics["checks"]
 			if !exists {
 				checkMetric = j.registry.MustNewMetric("checks", metrics.Rate)
@@ -330,7 +325,6 @@ func (j *ExternalJS) Run(flowPath string, payloadOrOptions interface{}) (map[str
 					continue
 				}
 
-				// Record check as rate metric: 1 for pass, 0 for fail
 				// k6 checks use the check name as a tag
 				checkValue := 0.0
 				if checkOk {
@@ -373,14 +367,11 @@ func parseRunOptionsFromArgs(entry string, arg interface{}) (*RunOptions, error)
 		Env:     make(map[string]string),
 	}
 
-	// Only maps can be "options objects"
 	rawMap, ok := arg.(map[string]interface{})
 	if !ok {
-		// Not a map => treat as plain payload
 		return opts, nil
 	}
 
-	// Detect if this looks like an "options" object
 	_, hasPayload := rawMap["payload"]
 	_, hasEnv := rawMap["env"]
 	_, hasTimeout := rawMap["timeout"]
@@ -388,11 +379,8 @@ func parseRunOptionsFromArgs(entry string, arg interface{}) (*RunOptions, error)
 
 	isOptions := hasPayload || hasEnv || hasTimeout || hasRuntime
 	if !isOptions {
-		// Map but no special keys => treat whole map as payload
 		return opts, nil
 	}
-
-	// Now we treat it as { payload?, env?, timeout?, runtime? }
 	if v, ok := rawMap["runtime"].(string); ok {
 		opts.Runtime = v
 	}
@@ -435,6 +423,24 @@ func (j *ExternalJS) extractMetricValue(value interface{}) float64 {
 	default:
 		return 0
 	}
+}
+
+// detectRuntimeFromFilename detects the runtime from filename patterns like *.node.js, *.deno.ts, *.bun.js.
+// The runtime identifier must appear immediately before the file extension.
+func detectRuntimeFromFilename(filename string) string {
+	if filename == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(filename)
+	runtimeRegex := regexp.MustCompile(`\.(node|deno|bun)\.(js|ts|mjs|cjs)$`)
+	matches := runtimeRegex.FindStringSubmatch(lower)
+
+	if len(matches) >= 2 {
+		return matches[1]
+	}
+
+	return ""
 }
 
 // extractResult parses the JSON result from external JavaScript runtime output
