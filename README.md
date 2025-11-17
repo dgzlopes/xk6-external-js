@@ -1,8 +1,10 @@
 # xk6-external-js
 
-Run Node, Deno, or Bun code from k6 tests. 
+Run Node, Deno, or Bun code from your k6 tests so you can use:
 
-Useful for using npm packages, standard library APIs, or existing code that doesn't work on k6's JavaScript runtime.
+- Any npm package (e.g., Playwright)
+- Runtime standard libraries (e.g., fs, crypto, http)
+- Existing JavaScript/TypeScript code that doesn’t run in k6’s runtime
 
 ## Build
 
