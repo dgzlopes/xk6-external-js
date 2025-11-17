@@ -1,6 +1,6 @@
 {
   "name": "xk6-external-js-helpers",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Helper library for xk6-external-js",
   "main": "index.js",
   "type": "module",
@@ -12,7 +12,7 @@
   },
   "keywords": [
     "k6",
-    "load-testing",
+    "testing",
     "metrics",
     "javascript",
     "nodejs",
